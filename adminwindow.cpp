@@ -3,6 +3,7 @@
 #include "booking.h"
 #include "user.h"
 #include "tariff.h"
+#include "bookingdialog.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -83,7 +84,7 @@ QWidget* AdminWindow::createUsersTab()
     m_usersTable->horizontalHeader()->setStretchLastSection(true);
     m_usersTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_usersTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_usersTable->setColumnHidden(0, true); // ID скрываем
+    m_usersTable->setColumnHidden(0, true);
     mainLay->addWidget(m_usersTable);
 
     // Кнопки управления пользователями
@@ -91,13 +92,16 @@ QWidget* AdminWindow::createUsersTab()
     m_loadUsersBtn = new QPushButton("Обновить список");
     m_approveUserBtn = new QPushButton("Подтвердить выбранного");
     m_deleteUserBtn = new QPushButton("Удалить выбранного");
+    m_bookForUserBtn = new QPushButton("Забронировать для выбранного");
+
     btnLay->addWidget(m_loadUsersBtn);
     btnLay->addWidget(m_approveUserBtn);
     btnLay->addWidget(m_deleteUserBtn);
+    btnLay->addWidget(m_bookForUserBtn);
     btnLay->addStretch();
     mainLay->addLayout(btnLay);
 
-    // Разделитель и форма регистрации нового пользователя администратором
+    // Разделитель
     QFrame *line = new QFrame;
     line->setFrameShape(QFrame::HLine);
     line->setFrameShadow(QFrame::Sunken);
@@ -126,9 +130,11 @@ QWidget* AdminWindow::createUsersTab()
     mainLay->addWidget(m_registerUserBtn);
     mainLay->addStretch();
 
+    // Подключение сигналов
     connect(m_loadUsersBtn, &QPushButton::clicked, this, &AdminWindow::loadUsers);
     connect(m_approveUserBtn, &QPushButton::clicked, this, &AdminWindow::approveSelectedUser);
     connect(m_deleteUserBtn, &QPushButton::clicked, this, &AdminWindow::deleteSelectedUser);
+    connect(m_bookForUserBtn, &QPushButton::clicked, this, &AdminWindow::openBookingForUser);
     connect(m_registerUserBtn, &QPushButton::clicked, this, &AdminWindow::registerUserByAdmin);
 
     return w;
@@ -213,7 +219,7 @@ void AdminWindow::deleteSelectedBooking()
         QMessageBox::information(this, "Удаление", "Выберите бронирование для удаления.");
         return;
     }
-    // Здесь нужно получить id бронирования. Пока заглушка:
+    // В реальном проекте нужно получить ID бронирования из скрытых данных
     QMessageBox::warning(this, "Не реализовано", "Удаление по ID ещё не реализовано (нужно хранить id в ячейке).");
 }
 
@@ -294,6 +300,38 @@ void AdminWindow::registerUserByAdmin()
         loadUsers();
     } else {
         QMessageBox::critical(this, "Ошибка", "Не удалось зарегистрировать пользователя.");
+    }
+}
+
+void AdminWindow::openBookingForUser()
+{
+    int row = m_usersTable->currentRow();
+    if (row < 0) {
+        QMessageBox::information(this, "Бронирование", "Выберите пользователя из списка.");
+        return;
+    }
+
+    int userId = m_usersTable->item(row, 0)->text().toInt();
+    QString fullName = m_usersTable->item(row, 1)->text();
+
+    BookingDialog dlg(userId, fullName, this);
+    if (dlg.exec() == QDialog::Accepted) {
+        Booking booking = dlg.bookingData();
+        booking.userId = userId;
+        booking.userFullName = fullName;
+
+        if (!m_db->isTimeSlotAvailable(booking.hallName, booking.date,
+                                       booking.startTime, booking.endTime)) {
+            QMessageBox::warning(this, "Ошибка", "Это время уже занято.");
+            return;
+        }
+
+        if (m_db->addBooking(booking)) {
+            QMessageBox::information(this, "Успех", "Бронирование создано.");
+            refreshBookingsTable();
+        } else {
+            QMessageBox::critical(this, "Ошибка", "Не удалось создать бронирование.");
+        }
     }
 }
 

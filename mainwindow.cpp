@@ -1,7 +1,7 @@
 #include "mainwindow.h"
 #include "database.h"
 #include "bookingdialog.h"
-
+#include "loginwindow.h"
 #include <QToolBar>
 #include <QVBoxLayout>
 #include <QHeaderView>
@@ -13,9 +13,15 @@ MainWindow::MainWindow(const User &user, QWidget *parent)
     : QMainWindow(parent)
     , m_user(user)
     , m_db(Database::instance())
+    , m_loginWindow(nullptr)
 {
     setupUi();
     refreshBookings();
+}
+
+void MainWindow::setLoginWindow(LoginWindow *loginWindow)
+{
+    m_loginWindow = loginWindow;
 }
 
 void MainWindow::setupUi()
@@ -25,7 +31,9 @@ void MainWindow::setupUi()
 
     // Панель инструментов
     QToolBar *toolbar = addToolBar("Действия");
+    m_backBtn = new QPushButton("← Назад");
     m_bookBtn = new QPushButton("Забронировать");
+    toolbar->addWidget(m_backBtn);
     toolbar->addWidget(m_bookBtn);
     toolbar->addSeparator();
     m_userInfoLabel = new QLabel("Пользователь: " + m_user.fullName + "   |   " + m_user.sport);
@@ -58,19 +66,18 @@ void MainWindow::setupUi()
     m_tabWidget->addTab(m_nextMonthTable,
                         QString("Следующий месяц (%1)").arg(nextMonthStart.toString("MMMM yyyy")));
 
+    connect(m_backBtn, &QPushButton::clicked, this, &MainWindow::onLogout);
     connect(m_bookBtn, &QPushButton::clicked, this, &MainWindow::openBookingDialog);
 }
 
 void MainWindow::openBookingDialog()
 {
     BookingDialog dlg(this);
-    // Можно предзаполнить вид спорта пользователя
     if (dlg.exec() == QDialog::Accepted) {
         Booking booking = dlg.bookingData();
         booking.userId = m_user.id;
         booking.userFullName = m_user.fullName;
 
-        // Проверка доступности слота
         if (!m_db->isTimeSlotAvailable(booking.hallName, booking.date,
                                        booking.startTime, booking.endTime)) {
             QMessageBox::warning(this, "Ошибка", "Выбранное время недоступно.");
@@ -81,7 +88,6 @@ void MainWindow::openBookingDialog()
             QMessageBox::information(this, "Успех", "Бронирование добавлено.");
             refreshBookings();
 
-            // Уведомление администратора
             QString msg = QString("Новое бронирование:\n%1\nЗал %2\n%3, %4 – %5\nСтоимость: %6 ₽")
                               .arg(m_user.fullName,
                                    booking.hallName,
@@ -123,14 +129,12 @@ void MainWindow::populateMonthTable(QTableWidget *table, const QDate &from, cons
         table->setItem(i, 3, new QTableWidgetItem(b.sportType));
         table->setItem(i, 4, new QTableWidgetItem(QString::number(b.cost, 'f', 2)));
 
-        // Если бронирование принадлежит текущему пользователю — показываем кнопку "Отменить"
         if (b.userId == m_user.id) {
             auto *cancelBtn = new QPushButton("Отменить");
             cancelBtn->setProperty("bookingId", b.id);
             connect(cancelBtn, &QPushButton::clicked, this, &MainWindow::cancelSelectedBooking);
             table->setCellWidget(i, 5, cancelBtn);
         } else {
-            // Для чужих бронирований не показываем имя пользователя, только "Занято"
             table->setItem(i, 5, new QTableWidgetItem("Занято"));
         }
     }
@@ -154,4 +158,12 @@ void MainWindow::cancelSelectedBooking()
             QMessageBox::critical(this, "Ошибка", "Не удалось отменить бронирование.");
         }
     }
+}
+
+void MainWindow::onLogout()
+{
+    if (m_loginWindow) {
+        m_loginWindow->show();
+    }
+    close();
 }

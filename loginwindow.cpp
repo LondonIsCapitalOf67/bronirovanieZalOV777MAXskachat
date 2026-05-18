@@ -1,6 +1,6 @@
 #include "loginwindow.h"
 #include "database.h"
-#include "user.h"       // ваша структура User (или достаточно database.h)
+#include "user.h"
 #include <QVBoxLayout>
 #include <QFormLayout>
 #include <QMessageBox>

@@ -8,10 +8,8 @@
 #include <QCheckBox>
 #include <QLabel>
 #include <QPushButton>
-#include <QDoubleSpinBox>
-#include <QSpinBox>
 
-struct Booking;   // ваш класс/структура бронирования
+struct Booking;
 
 class BookingDialog : public QDialog
 {
@@ -19,20 +17,19 @@ class BookingDialog : public QDialog
 
 public:
     explicit BookingDialog(QWidget *parent = nullptr);
-    BookingDialog(const Booking &booking, QWidget *parent = nullptr); // для редактирования
+    // Конструктор для бронирования от имени конкретного пользователя
+    BookingDialog(int userId, const QString &userFullName, QWidget *parent = nullptr);
 
-    Booking bookingData() const;  // возвращает заполненные данные
+    Booking bookingData() const;
 
 private slots:
-    void calculateCost();         // пересчёт стоимости при изменении параметров
+    void calculateCost();
     void onAccept();
 
 private:
     void setupUi();
     void setupConnections();
-    void fillFromBooking(const Booking &b); // заполнение полей при редактировании
 
-    // Элементы интерфейса
     QComboBox   *m_hallCombo;
     QDateEdit   *m_dateEdit;
     QTimeEdit   *m_timeFromEdit;
@@ -40,11 +37,13 @@ private:
     QComboBox   *m_sportCombo;
     QCheckBox   *m_recurringCheck;
     QLabel      *m_costLabel;
+    QLabel      *m_userInfoLabel;   // показывает, для кого бронь
     QPushButton *m_okBtn;
     QPushButton *m_cancelBtn;
 
-    class Database *m_db;   // ваш синглтон БД
-    bool m_editing = false; // флаг редактирования существующего бронирования
+    class Database *m_db;
+    int m_userId = -1;
+    QString m_userFullName;
 };
 
 #endif // BOOKINGDIALOG_H

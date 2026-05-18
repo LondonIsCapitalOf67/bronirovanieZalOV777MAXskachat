@@ -30,10 +30,11 @@ private slots:
     void deleteSelectedBooking();
 
     // Пользователи
-    void loadUsers();                   // обновить таблицу пользователей
-    void approveSelectedUser();         // подтвердить пользователя
-    void deleteSelectedUser();          // удалить пользователя
-    void registerUserByAdmin();         // регистрация нового пользователя
+    void loadUsers();
+    void approveSelectedUser();
+    void deleteSelectedUser();
+    void registerUserByAdmin();
+    void openBookingForUser();         // бронирование для выбранного пользователя
 
     // Тарифы
     void loadTariffs();
@@ -61,6 +62,7 @@ private:
     QPushButton *m_loadUsersBtn;
     QPushButton *m_approveUserBtn;
     QPushButton *m_deleteUserBtn;
+    QPushButton *m_bookForUserBtn;     // новая кнопка
 
     QLineEdit *m_newUserName;
     QLineEdit *m_newUserPhone;
