@@ -16,7 +16,7 @@ public:
     void refresh();                     // перезагрузить данные для текущего месяца
 
 signals:
-    void monthChanged(const QDate &firstDay);   // опционально
+    void monthChanged(const QDate &firstDay);
 
 private slots:
     void goToPreviousMonth();
@@ -28,14 +28,14 @@ private:
     void populateTable();
     QList<QDate> getDaysOfMonth(const QDate &firstDay) const;
 
-    bool m_showUserNames;               // показывать ли имена бронирующих (для админа)
+    bool m_showUserNames;
     QTableWidget *m_table;
     QComboBox *m_monthCombo;
     QPushButton *m_prevBtn;
     QPushButton *m_nextBtn;
 
-    QDate m_currentMonthStart;          // первое число отображаемого месяца
-    QStringList m_halls;                // список залов из БД
+    QDate m_currentMonthStart;
+    QStringList m_halls;
 
     class Database *m_db;
 };

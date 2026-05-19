@@ -334,6 +334,7 @@ void AdminWindow::openBookingForUser()
         if (m_db->addBooking(booking)) {
             QMessageBox::information(this, "Успех", "Бронирование создано.");
             refreshBookingsTable();
+            m_calendarWidget->refresh();
         } else {
             QMessageBox::critical(this, "Ошибка", "Не удалось создать бронирование.");
         }

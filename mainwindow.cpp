@@ -243,6 +243,7 @@ void MainWindow::openBookingDialog()
         if (m_db->addBooking(booking)) {
             QMessageBox::information(this, "Успех", "Бронирование добавлено.");
             refreshBookings();
+            m_calendarWidget->refresh();
 
             QString msg = QString("Новое бронирование:\n%1\nЗал %2\n%3, %4 – %5\nСтоимость: %6 ₽")
                               .arg(m_user.fullName,
@@ -310,6 +311,7 @@ void MainWindow::cancelSelectedBooking()
         if (m_db->removeBooking(bookingId)) {
             QMessageBox::information(this, "Успех", "Бронирование отменено.");
             refreshBookings();
+            m_calendarWidget->refresh();
         } else {
             QMessageBox::critical(this, "Ошибка", "Не удалось отменить бронирование.");
         }

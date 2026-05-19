@@ -11,7 +11,6 @@ CalendarWidget::CalendarWidget(bool showUserNames, QWidget *parent)
     , m_showUserNames(showUserNames)
     , m_db(Database::instance())
 {
-    // Начинаем с текущего месяца
     m_currentMonthStart = QDate(QDate::currentDate().year(), QDate::currentDate().month(), 1);
     setupUi();
     populateTable();
@@ -27,28 +26,26 @@ void CalendarWidget::setupUi()
     m_nextBtn = new QPushButton("Следующий месяц >>");
     m_monthCombo = new QComboBox;
 
-    // Заполним комбобокс названиями двух месяцев: текущий и следующий (относительно реальной даты)
     QDate today = QDate::currentDate();
     QDate currentStart(today.year(), today.month(), 1);
     QDate nextStart = currentStart.addMonths(1);
     m_monthCombo->addItem(currentStart.toString("MMMM yyyy"), currentStart);
     m_monthCombo->addItem(nextStart.toString("MMMM yyyy"), nextStart);
-    m_monthCombo->setCurrentIndex(0);   // текущий месяц по умолчанию
+    m_monthCombo->setCurrentIndex(0);
 
     navLayout->addWidget(m_prevBtn);
     navLayout->addWidget(m_monthCombo);
     navLayout->addWidget(m_nextBtn);
     mainLayout->addLayout(navLayout);
 
-    // Таблица-сетка
     m_table = new QTableWidget;
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_table->setSelectionMode(QAbstractItemView::NoSelection);
     m_table->horizontalHeader()->setStretchLastSection(true);
-    m_table->verticalHeader()->setVisible(false);
+    m_table->verticalHeader()->setVisible(true);   // показываем номера строк
+    m_table->setAlternatingRowColors(false);
     mainLayout->addWidget(m_table);
 
-    // Подключаем сигналы
     connect(m_prevBtn, &QPushButton::clicked, this, &CalendarWidget::goToPreviousMonth);
     connect(m_nextBtn, &QPushButton::clicked, this, &CalendarWidget::goToNextMonth);
     connect(m_monthCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
@@ -67,34 +64,33 @@ QList<QDate> CalendarWidget::getDaysOfMonth(const QDate &firstDay) const
 
 void CalendarWidget::populateTable()
 {
-    // Получаем список залов
     m_halls = m_db->getHalls();
     int numHalls = m_halls.size();
 
-    // Получаем все бронирования за выбранный месяц
     QDate monthEnd = m_currentMonthStart.addMonths(1).addDays(-1);
     QList<Booking> bookings = m_db->getAllBookings(m_currentMonthStart, monthEnd);
 
-    // Строим таблицу: строки = дни месяца, столбцы = залы
     QList<QDate> days = getDaysOfMonth(m_currentMonthStart);
     int numDays = days.size();
 
     m_table->setColumnCount(numHalls);
     m_table->setHorizontalHeaderLabels(m_halls);
 
-    // Вертикальные заголовки (числа)
+    // Формируем вертикальные заголовки: день недели + число
     QStringList dayLabels;
-    for (const QDate &d : days)
-        dayLabels << d.toString("d");
+    QStringList dayOfWeekNames = {"Пн","Вт","Ср","Чт","Пт","Сб","Вс"};
+    for (const QDate &d : days) {
+        int dow = d.dayOfWeek(); // 1=Пн
+        dayLabels << QString("%1 %2").arg(dayOfWeekNames.at(dow-1)).arg(d.day());
+    }
     m_table->setRowCount(numDays);
     m_table->setVerticalHeaderLabels(dayLabels);
 
-    // Заполняем ячейки
+    // Заполнение ячеек
     for (int col = 0; col < numHalls; ++col) {
         const QString &hall = m_halls.at(col);
         for (int row = 0; row < numDays; ++row) {
             QDate date = days.at(row);
-            // Собираем бронирования на эту дату и этот зал
             QStringList occupiers;
             bool occupied = false;
             for (const Booking &b : bookings) {
@@ -106,12 +102,13 @@ void CalendarWidget::populateTable()
             }
 
             QTableWidgetItem *item = new QTableWidgetItem;
+            item->setForeground(Qt::black);   // чёрный цвет текста
             if (occupied) {
                 item->setText(m_showUserNames ? occupiers.join(", ") : "Занято");
-                item->setBackground(QColor(255, 200, 200));  // красноватый
+                item->setBackground(QColor(255, 200, 200));  // светло-красный
             } else {
                 item->setText("Свободно");
-                item->setBackground(QColor(200, 255, 200));  // зеленоватый
+                item->setBackground(QColor(200, 255, 200));  // светло-зелёный
             }
             item->setFlags(item->flags() & ~Qt::ItemIsEditable);
             m_table->setItem(row, col, item);
@@ -125,7 +122,6 @@ void CalendarWidget::populateTable()
 void CalendarWidget::goToPreviousMonth()
 {
     m_currentMonthStart = m_currentMonthStart.addMonths(-1);
-    // Обновим комбобокс, если нужно
     populateTable();
     emit monthChanged(m_currentMonthStart);
 }
