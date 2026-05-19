@@ -12,6 +12,7 @@
 #include <QCheckBox>
 #include <QLabel>
 #include <QMessageBox>
+#include "calendarwidget.h"
 
 class AdminWindow : public QMainWindow
 {
@@ -23,6 +24,7 @@ public:
 
 signals:
     void bookingAdded(const QString &user, const QString &date, const QString &time);
+    void logoutRequested();
 
 private slots:
     // Бронирования
@@ -34,7 +36,7 @@ private slots:
     void approveSelectedUser();
     void deleteSelectedUser();
     void registerUserByAdmin();
-    void openBookingForUser();         // бронирование для выбранного пользователя
+    void openBookingForUser();
 
     // Тарифы
     void loadTariffs();
@@ -43,6 +45,7 @@ private slots:
     void updateMonthlyCost();
 
     void onNewBookingNotification(const QString &message);
+    void onLogout();
 
 private:
     void setupUi();
@@ -62,7 +65,7 @@ private:
     QPushButton *m_loadUsersBtn;
     QPushButton *m_approveUserBtn;
     QPushButton *m_deleteUserBtn;
-    QPushButton *m_bookForUserBtn;     // новая кнопка
+    QPushButton *m_bookForUserBtn;
 
     QLineEdit *m_newUserName;
     QLineEdit *m_newUserPhone;
@@ -81,6 +84,10 @@ private:
     QPushButton *m_deleteTariffBtn;
     QDoubleSpinBox *m_monthlyCostSpin;
     QPushButton *m_updateMonthlyCostBtn;
+
+    QPushButton *m_backBtn;
+
+    CalendarWidget *m_calendarWidget;
 
     class Database *m_db;
 };

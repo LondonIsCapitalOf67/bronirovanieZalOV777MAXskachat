@@ -17,18 +17,26 @@ int main(int argc, char *argv[])
     LoginWindow loginWindow;
     loginWindow.show();
 
-    QObject::connect(&loginWindow, &LoginWindow::loginSuccess, [&](const User &user) {
-        loginWindow.hide();
+    QObject::connect(&loginWindow, &LoginWindow::loginSuccess,
+                     &loginWindow,   // контекст
+                     [&](const User &user) {
+                         loginWindow.hide();
 
-        if (user.login == "admin") {
-            AdminWindow *adminWin = new AdminWindow;
-            adminWin->show();
-        } else {
-            MainWindow *userWin = new MainWindow(user);
-            userWin->setLoginWindow(&loginWindow);   // передаём указатель
-            userWin->show();
-        }
-    });
+                         if (user.login == "admin") {
+                             AdminWindow *adminWin = new AdminWindow;
+                             // Кнопка "Назад" у админа
+                             QObject::connect(adminWin, &AdminWindow::logoutRequested,
+                                              [adminWin, &loginWindow]() {
+                                                  adminWin->deleteLater();
+                                                  loginWindow.show();
+                                              });
+                             adminWin->show();
+                         } else {
+                             MainWindow *userWin = new MainWindow(user);
+                             userWin->setLoginWindow(&loginWindow);
+                             userWin->show();
+                         }
+                     });
 
     return a.exec();
 }

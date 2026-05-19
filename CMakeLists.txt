@@ -37,6 +37,7 @@ add_executable(${PROJECT_NAME}
     ${SOURCES}
     ${HEADERS}
     ${RESOURCES}
+    calendarwidget.h calendarwidget.cpp
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE

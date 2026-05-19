@@ -8,8 +8,8 @@
 #include <QLabel>
 #include <QStackedWidget>
 #include <QComboBox>
-
-struct User; // forward declaration
+#include "user.h"
+#include "calendarwidget.h"
 
 class LoginWindow : public QWidget
 {
@@ -50,6 +50,8 @@ private:
     QCheckBox *m_consentCheck;
     QPushButton *m_registerBtn;
     QPushButton *m_toLoginBtn;
+
+    CalendarWidget *m_calendarWidget;
 
     class Database *m_db;
 };

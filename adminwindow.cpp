@@ -4,7 +4,6 @@
 #include "user.h"
 #include "tariff.h"
 #include "bookingdialog.h"
-
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -12,6 +11,7 @@
 #include <QMessageBox>
 #include <QDate>
 #include <QTime>
+#include <QToolBar>
 
 AdminWindow::AdminWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -32,12 +32,22 @@ void AdminWindow::setupUi()
     setWindowTitle("Панель администратора");
     resize(900, 600);
 
+    // Тулбар с кнопкой "Назад"
+    QToolBar *toolbar = addToolBar("Навигация");
+    m_backBtn = new QPushButton("← Назад");
+    toolbar->addWidget(m_backBtn);
+    connect(m_backBtn, &QPushButton::clicked, this, &AdminWindow::onLogout);
+
     m_tabWidget = new QTabWidget(this);
     setCentralWidget(m_tabWidget);
 
     m_tabWidget->addTab(createBookingsTab(), "Бронирования");
     m_tabWidget->addTab(createUsersTab(), "Пользователи");
     m_tabWidget->addTab(createTariffsTab(), "Тарифы");
+
+    // Календарь
+    m_calendarWidget = new CalendarWidget(true);   // true – показываем имена
+    m_tabWidget->addTab(m_calendarWidget, "Календарь");
 }
 
 // ---------- Вкладка «Бронирования» ----------
@@ -76,7 +86,6 @@ QWidget* AdminWindow::createUsersTab()
     QWidget *w = new QWidget;
     QVBoxLayout *mainLay = new QVBoxLayout(w);
 
-    // Таблица всех пользователей
     m_usersTable = new QTableWidget;
     m_usersTable->setColumnCount(7);
     m_usersTable->setHorizontalHeaderLabels(
@@ -87,7 +96,6 @@ QWidget* AdminWindow::createUsersTab()
     m_usersTable->setColumnHidden(0, true);
     mainLay->addWidget(m_usersTable);
 
-    // Кнопки управления пользователями
     QHBoxLayout *btnLay = new QHBoxLayout;
     m_loadUsersBtn = new QPushButton("Обновить список");
     m_approveUserBtn = new QPushButton("Подтвердить выбранного");
@@ -101,7 +109,6 @@ QWidget* AdminWindow::createUsersTab()
     btnLay->addStretch();
     mainLay->addLayout(btnLay);
 
-    // Разделитель
     QFrame *line = new QFrame;
     line->setFrameShape(QFrame::HLine);
     line->setFrameShadow(QFrame::Sunken);
@@ -130,7 +137,6 @@ QWidget* AdminWindow::createUsersTab()
     mainLay->addWidget(m_registerUserBtn);
     mainLay->addStretch();
 
-    // Подключение сигналов
     connect(m_loadUsersBtn, &QPushButton::clicked, this, &AdminWindow::loadUsers);
     connect(m_approveUserBtn, &QPushButton::clicked, this, &AdminWindow::approveSelectedUser);
     connect(m_deleteUserBtn, &QPushButton::clicked, this, &AdminWindow::deleteSelectedUser);
@@ -219,7 +225,6 @@ void AdminWindow::deleteSelectedBooking()
         QMessageBox::information(this, "Удаление", "Выберите бронирование для удаления.");
         return;
     }
-    // В реальном проекте нужно получить ID бронирования из скрытых данных
     QMessageBox::warning(this, "Не реализовано", "Удаление по ID ещё не реализовано (нужно хранить id в ячейке).");
 }
 
@@ -381,7 +386,6 @@ void AdminWindow::deleteSelectedTariff()
         return;
     }
     if (QMessageBox::question(this, "Подтверждение", "Удалить выбранный тариф?") == QMessageBox::Yes) {
-        // Здесь нужно получить id тарифа (пока не реализовано)
         QMessageBox::warning(this, "Не реализовано", "Удаление тарифа по ID ещё не реализовано.");
     }
 }
@@ -400,4 +404,10 @@ void AdminWindow::onNewBookingNotification(const QString &message)
 {
     QMessageBox::information(this, "Новое бронирование", message);
     refreshBookingsTable();
+}
+
+void AdminWindow::onLogout()
+{
+    close();
+    emit logoutRequested();
 }

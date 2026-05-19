@@ -22,7 +22,7 @@ void LoginWindow::setupUi()
     m_stack = new QStackedWidget;
     mainLayout->addWidget(m_stack);
 
-    // ----------------- Страница входа -----------------
+    //Страница входа
     m_loginPage = new QWidget;
     auto *loginLayout = new QVBoxLayout(m_loginPage);
     auto *loginForm = new QFormLayout;
@@ -39,7 +39,7 @@ void LoginWindow::setupUi()
     loginLayout->addWidget(m_toRegisterBtn);
     loginLayout->addStretch();
 
-    // ----------------- Страница регистрации -----------------
+    // Страница регистрации
     m_registerPage = new QWidget;
     auto *regLayout = new QVBoxLayout(m_registerPage);
     auto *regForm = new QFormLayout;

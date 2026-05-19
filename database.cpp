@@ -1,10 +1,10 @@
 #include "database.h"
-#include <QStandardPaths>
-#include <QDir>
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QCryptographicHash>
 #include <QDebug>
+#include <QStandardPaths>
+#include <QDir>
 
 Database* Database::s_instance = nullptr;
 
@@ -12,14 +12,12 @@ Database::Database()
 {
     m_db = QSqlDatabase::addDatabase("QSQLITE");
 
-    // Определяем папку для хранения данных в %APPDATA%/HallBooking
     QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     QDir dir(dataDir);
     if (!dir.exists()) {
         dir.mkpath(".");
     }
     QString dbPath = dataDir + "/hall_booking.db";
-
     m_db.setDatabaseName(dbPath);
 }
 
@@ -45,12 +43,8 @@ bool Database::initialize()
     }
 
     QSqlQuery q(m_db);
-
-    // Включаем поддержку внешних ключей
     q.exec("PRAGMA foreign_keys = ON");
 
-    // --- Создание таблиц ---
-    // Таблица пользователей
     if (!q.exec(
             "CREATE TABLE IF NOT EXISTS users ("
             "id INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -65,7 +59,6 @@ bool Database::initialize()
         return false;
     }
 
-    // Таблица залов
     if (!q.exec(
             "CREATE TABLE IF NOT EXISTS halls ("
             "id INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -74,7 +67,6 @@ bool Database::initialize()
         return false;
     }
 
-    // Предзаполнение залов (если таблица пуста)
     q.exec("SELECT COUNT(*) FROM halls");
     if (q.next() && q.value(0).toInt() == 0) {
         q.exec("INSERT INTO halls (name) VALUES ('Зал 1')");
@@ -82,7 +74,6 @@ bool Database::initialize()
         q.exec("INSERT INTO halls (name) VALUES ('Зал 3')");
     }
 
-    // Таблица бронирований
     if (!q.exec(
             "CREATE TABLE IF NOT EXISTS bookings ("
             "id INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -99,7 +90,6 @@ bool Database::initialize()
         return false;
     }
 
-    // Таблица тарифов
     if (!q.exec(
             "CREATE TABLE IF NOT EXISTS tariffs ("
             "id INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -111,7 +101,6 @@ bool Database::initialize()
         return false;
     }
 
-    // Таблица настроек
     if (!q.exec(
             "CREATE TABLE IF NOT EXISTS settings ("
             "key TEXT PRIMARY KEY, "
@@ -120,17 +109,13 @@ bool Database::initialize()
         return false;
     }
 
-    // Установить стоимость абонемента по умолчанию, если ещё не задана
     q.exec("INSERT OR IGNORE INTO settings (key, value) VALUES ('monthly_cost', '5000')");
 
-    // --- Создание администратора, если его ещё нет ---
     q.exec("SELECT COUNT(*) FROM users WHERE login = 'admin'");
     if (q.next() && q.value(0).toInt() == 0) {
-        // Пароль "admin", хеш SHA-256
         QString adminPasswordHash = QString::fromLatin1(
             QCryptographicHash::hash("admin", QCryptographicHash::Sha256).toHex()
             );
-
         q.prepare("INSERT INTO users (full_name, phone, sport, login, password_hash, approved, personal_data_consent) "
                   "VALUES (?, ?, ?, ?, ?, 1, 1)");
         q.addBindValue("Администратор");
@@ -138,18 +123,15 @@ bool Database::initialize()
         q.addBindValue("");
         q.addBindValue("admin");
         q.addBindValue(adminPasswordHash);
-
         if (!q.exec()) {
             qWarning() << "Не удалось создать администратора:" << q.lastError().text();
-        } else {
-            qDebug() << "Администратор (admin/admin) создан.";
         }
     }
 
     return true;
 }
 
-// ------------------ Пользователи ------------------
+// ---------- Пользователи ----------
 bool Database::addUser(const QString &fullName, const QString &phone,
                        const QString &sport, const QString &login,
                        const QString &password)
@@ -185,6 +167,26 @@ User Database::getUserByLogin(const QString &login) const
     return u;
 }
 
+User Database::getUserById(int userId) const
+{
+    User u;
+    QSqlQuery q(m_db);
+    q.prepare("SELECT id, full_name, phone, sport, login, password_hash, approved, personal_data_consent "
+              "FROM users WHERE id = ?");
+    q.addBindValue(userId);
+    if (q.exec() && q.next()) {
+        u.id = q.value(0).toInt();
+        u.fullName = q.value(1).toString();
+        u.phone = q.value(2).toString();
+        u.sport = q.value(3).toString();
+        u.login = q.value(4).toString();
+        u.passwordHash = q.value(5).toString();
+        u.approved = q.value(6).toBool();
+        u.personalDataConsent = q.value(7).toBool();
+    }
+    return u;
+}
+
 bool Database::approveUser(int userId)
 {
     QSqlQuery q(m_db);
@@ -204,7 +206,6 @@ bool Database::setPersonalDataConsent(int userId, bool consent)
 
 bool Database::deleteUser(int userId)
 {
-    // Проверяем, есть ли у пользователя бронирования
     QSqlQuery q(m_db);
     q.prepare("SELECT COUNT(*) FROM bookings WHERE user_id = ?");
     q.addBindValue(userId);
@@ -214,7 +215,6 @@ bool Database::deleteUser(int userId)
             return false;
         }
     }
-
     q.prepare("DELETE FROM users WHERE id = ?");
     q.addBindValue(userId);
     return q.exec();
@@ -238,10 +238,39 @@ QList<User> Database::getAllUsers() const
     return users;
 }
 
-// ------------------ Бронирования ------------------
+bool Database::updateUserProfile(int userId, const QString &fullName,
+                                 const QString &phone, const QString &sport)
+{
+    QSqlQuery q(m_db);
+    q.prepare("UPDATE users SET full_name = ?, phone = ?, sport = ? WHERE id = ?");
+    q.addBindValue(fullName);
+    q.addBindValue(phone);
+    q.addBindValue(sport);
+    q.addBindValue(userId);
+    return q.exec();
+}
+
+bool Database::changePassword(int userId, const QString &oldPassword,
+                              const QString &newPassword)
+{
+    User u = getUserById(userId);
+    if (u.id == -1) return false;
+
+    QString oldHash = QCryptographicHash::hash(oldPassword.toUtf8(), QCryptographicHash::Sha256).toHex();
+    if (u.passwordHash != oldHash) {
+        return false;
+    }
+
+    QSqlQuery q(m_db);
+    q.prepare("UPDATE users SET password_hash = ? WHERE id = ?");
+    q.addBindValue(QCryptographicHash::hash(newPassword.toUtf8(), QCryptographicHash::Sha256).toHex());
+    q.addBindValue(userId);
+    return q.exec();
+}
+
+// ---------- Бронирования ----------
 bool Database::addBooking(const Booking &booking)
 {
-    // Проверка доступности
     if (!isTimeSlotAvailable(booking.hallName, booking.date,
                              booking.startTime, booking.endTime))
         return false;
@@ -359,7 +388,7 @@ bool Database::isTimeSlotAvailable(const QString &hall, const QDate &date,
 
 void Database::generateRecurringBookingsForMonth(const QDate &monthStart)
 {
-    QSqlQuery q(m_db);
+    // ... реализация остаётся прежней ...
     QSqlQuery origQuery(m_db);
     origQuery.prepare("SELECT id, date FROM bookings WHERE is_recurring = 1 AND date < ?");
     origQuery.addBindValue(monthStart.toString("yyyy-MM-dd"));
@@ -410,7 +439,7 @@ void Database::generateRecurringBookingsForMonth(const QDate &monthStart)
     }
 }
 
-// ------------------ Тарифы ------------------
+// ---------- Тарифы ----------
 bool Database::addTariff(const QString &dayOfWeek, int hourFrom, int hourTo, double price)
 {
     QSqlQuery q(m_db);
@@ -452,17 +481,17 @@ double Database::getHourlyRate(const QString &dayOfWeek, int hour) const
     QSqlQuery q(m_db);
     q.prepare("SELECT price_per_hour FROM tariffs "
               "WHERE day_of_week = ? AND hour_from <= ? AND hour_to > ? "
-              "ORDER BY price_per_hour DESC LIMIT 1"); // если несколько, берём самый дорогой
+              "ORDER BY price_per_hour DESC LIMIT 1");
     q.addBindValue(dayOfWeek);
     q.addBindValue(hour);
     q.addBindValue(hour);
     if (q.exec() && q.next()) {
         return q.value(0).toDouble();
     }
-    return 100.0; // значение по умолчанию
+    return 100.0;
 }
 
-// ------------------ Настройки ------------------
+// ---------- Настройки ----------
 double Database::getMonthlySubscriptionCost() const
 {
     QSqlQuery q(m_db);
@@ -480,7 +509,7 @@ bool Database::setMonthlySubscriptionCost(double cost)
     return q.exec();
 }
 
-// ------------------ Залы ------------------
+// ---------- Залы ----------
 QStringList Database::getHalls() const
 {
     QStringList halls;
