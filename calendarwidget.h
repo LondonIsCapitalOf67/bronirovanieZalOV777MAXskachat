@@ -6,6 +6,8 @@
 #include <QComboBox>
 #include <QPushButton>
 #include <QDate>
+#include <QList>
+#include <QStringList>
 
 class CalendarWidget : public QWidget
 {
@@ -22,6 +24,7 @@ private slots:
     void goToPreviousMonth();
     void goToNextMonth();
     void onMonthSelected(int index);
+    void onCellClicked(int row, int col);   // новый слот
 
 private:
     void setupUi();
@@ -36,6 +39,7 @@ private:
 
     QDate m_currentMonthStart;
     QStringList m_halls;
+    QList<QDate> m_days;                    // храним дни текущего месяца для быстрого доступа
 
     class Database *m_db;
 };

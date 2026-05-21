@@ -40,9 +40,10 @@ void CalendarWidget::setupUi()
 
     m_table = new QTableWidget;
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_table->setSelectionMode(QAbstractItemView::NoSelection);
+    m_table->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_table->setSelectionBehavior(QAbstractItemView::SelectItems);
     m_table->horizontalHeader()->setStretchLastSection(true);
-    m_table->verticalHeader()->setVisible(true);   // показываем номера строк
+    m_table->verticalHeader()->setVisible(true);
     m_table->setAlternatingRowColors(false);
     mainLayout->addWidget(m_table);
 
@@ -50,6 +51,7 @@ void CalendarWidget::setupUi()
     connect(m_nextBtn, &QPushButton::clicked, this, &CalendarWidget::goToNextMonth);
     connect(m_monthCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &CalendarWidget::onMonthSelected);
+    connect(m_table, &QTableWidget::cellClicked, this, &CalendarWidget::onCellClicked);
 }
 
 QList<QDate> CalendarWidget::getDaysOfMonth(const QDate &firstDay) const
@@ -70,27 +72,25 @@ void CalendarWidget::populateTable()
     QDate monthEnd = m_currentMonthStart.addMonths(1).addDays(-1);
     QList<Booking> bookings = m_db->getAllBookings(m_currentMonthStart, monthEnd);
 
-    QList<QDate> days = getDaysOfMonth(m_currentMonthStart);
-    int numDays = days.size();
+    m_days = getDaysOfMonth(m_currentMonthStart);
+    int numDays = m_days.size();
 
     m_table->setColumnCount(numHalls);
     m_table->setHorizontalHeaderLabels(m_halls);
 
-    // Формируем вертикальные заголовки: день недели + число
     QStringList dayLabels;
     QStringList dayOfWeekNames = {"Пн","Вт","Ср","Чт","Пт","Сб","Вс"};
-    for (const QDate &d : days) {
-        int dow = d.dayOfWeek(); // 1=Пн
+    for (const QDate &d : m_days) {
+        int dow = d.dayOfWeek();
         dayLabels << QString("%1 %2").arg(dayOfWeekNames.at(dow-1)).arg(d.day());
     }
     m_table->setRowCount(numDays);
     m_table->setVerticalHeaderLabels(dayLabels);
 
-    // Заполнение ячеек
     for (int col = 0; col < numHalls; ++col) {
         const QString &hall = m_halls.at(col);
         for (int row = 0; row < numDays; ++row) {
-            QDate date = days.at(row);
+            QDate date = m_days.at(row);
             QStringList occupiers;
             bool occupied = false;
             for (const Booking &b : bookings) {
@@ -102,13 +102,13 @@ void CalendarWidget::populateTable()
             }
 
             QTableWidgetItem *item = new QTableWidgetItem;
-            item->setForeground(Qt::black);   // чёрный цвет текста
+            item->setForeground(Qt::black);
             if (occupied) {
                 item->setText(m_showUserNames ? occupiers.join(", ") : "Занято");
-                item->setBackground(QColor(255, 200, 200));  // светло-красный
+                item->setBackground(QColor(255, 200, 200));
             } else {
                 item->setText("Свободно");
-                item->setBackground(QColor(200, 255, 200));  // светло-зелёный
+                item->setBackground(QColor(200, 255, 200));
             }
             item->setFlags(item->flags() & ~Qt::ItemIsEditable);
             m_table->setItem(row, col, item);
@@ -144,4 +144,40 @@ void CalendarWidget::onMonthSelected(int index)
 void CalendarWidget::refresh()
 {
     populateTable();
+}
+
+void CalendarWidget::onCellClicked(int row, int col)
+{
+    if (row < 0 || row >= m_days.size() || col < 0 || col >= m_halls.size())
+        return;
+
+    QDate date = m_days.at(row);
+    QString hall = m_halls.at(col);
+
+    // Получаем все бронирования за выбранный день
+    QList<Booking> bookings = m_db->getAllBookings(date, date);
+
+    QStringList details;
+    for (const Booking &b : bookings) {
+        if (b.hallName == hall && b.date == date) {
+            QString entry = QString("%1 - %2  |  %3  |  %4")
+            .arg(b.startTime.toString("HH:mm"))
+                .arg(b.endTime.toString("HH:mm"))
+                .arg(b.userFullName)
+                .arg(b.sportType);
+            details << entry;
+        }
+    }
+
+    if (details.isEmpty()) {
+        QMessageBox::information(this,
+                                 "Информация",
+                                 QString("На %1 в зале «%2» нет бронирований.")
+                                     .arg(date.toString("dd.MM.yyyy"))
+                                     .arg(hall));
+    } else {
+        QMessageBox::information(this,
+                                 QString("Бронирования на %1 (%2)").arg(date.toString("dd.MM.yyyy")).arg(hall),
+                                 details.join("\n"));
+    }
 }
