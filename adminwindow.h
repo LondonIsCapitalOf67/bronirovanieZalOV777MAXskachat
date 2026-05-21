@@ -12,6 +12,7 @@
 #include <QCheckBox>
 #include <QLabel>
 #include <QMessageBox>
+#include <QMap>
 #include "calendarwidget.h"
 
 class AdminWindow : public QMainWindow
@@ -47,6 +48,11 @@ private slots:
     void onNewBookingNotification(const QString &message);
     void onLogout();
 
+    // Фильтрация бронирований
+    void onHallFilterChanged(int index);
+    void onClearFilters();
+    void onBookingTableContextMenu(const QPoint &pos);
+
 private:
     void setupUi();
     QWidget* createBookingsTab();
@@ -59,6 +65,9 @@ private:
     QTableWidget *m_bookingsTable;
     QPushButton *m_refreshBtn;
     QPushButton *m_deleteBookingBtn;
+    QComboBox   *m_hallFilterCombo;
+    QPushButton *m_clearFiltersBtn;
+    QMap<int, QString> m_columnFilters;   // column -> filter string
 
     // Вкладка "Пользователи"
     QTableWidget *m_usersTable;

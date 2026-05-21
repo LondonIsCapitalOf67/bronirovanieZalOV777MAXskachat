@@ -12,6 +12,8 @@
 #include <QDate>
 #include <QTime>
 #include <QToolBar>
+#include <QMenu>
+#include <QAction>
 
 AdminWindow::AdminWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -56,6 +58,20 @@ QWidget* AdminWindow::createBookingsTab()
     QWidget *w = new QWidget;
     QVBoxLayout *lay = new QVBoxLayout(w);
 
+    // Фильтр по залу
+    QHBoxLayout *filterLay = new QHBoxLayout;
+    filterLay->addWidget(new QLabel("Зал:"));
+    m_hallFilterCombo = new QComboBox;
+    m_hallFilterCombo->addItem("Все залы");
+    // Заполняем список залов из БД
+    QStringList halls = m_db->getHalls();
+    m_hallFilterCombo->addItems(halls);
+    m_clearFiltersBtn = new QPushButton("Сбросить фильтры");
+    filterLay->addWidget(m_hallFilterCombo);
+    filterLay->addWidget(m_clearFiltersBtn);
+    filterLay->addStretch();
+    lay->addLayout(filterLay);
+
     m_bookingsTable = new QTableWidget;
     m_bookingsTable->setColumnCount(6);
     m_bookingsTable->setHorizontalHeaderLabels(
@@ -63,6 +79,7 @@ QWidget* AdminWindow::createBookingsTab()
     m_bookingsTable->horizontalHeader()->setStretchLastSection(true);
     m_bookingsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_bookingsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_bookingsTable->setContextMenuPolicy(Qt::CustomContextMenu);
 
     QHBoxLayout *btnLay = new QHBoxLayout;
     m_refreshBtn = new QPushButton("Обновить");
@@ -76,6 +93,11 @@ QWidget* AdminWindow::createBookingsTab()
 
     connect(m_refreshBtn, &QPushButton::clicked, this, &AdminWindow::refreshBookingsTable);
     connect(m_deleteBookingBtn, &QPushButton::clicked, this, &AdminWindow::deleteSelectedBooking);
+    connect(m_hallFilterCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &AdminWindow::onHallFilterChanged);
+    connect(m_clearFiltersBtn, &QPushButton::clicked, this, &AdminWindow::onClearFilters);
+    connect(m_bookingsTable, &QTableWidget::customContextMenuRequested,
+            this, &AdminWindow::onBookingTableContextMenu);
 
     return w;
 }
@@ -203,6 +225,37 @@ QWidget* AdminWindow::createTariffsTab()
 void AdminWindow::refreshBookingsTable()
 {
     QList<Booking> bookings = m_db->getAllBookings();
+
+    // Применяем фильтры
+    QString selectedHall = m_hallFilterCombo->currentText();
+    if (selectedHall != "Все залы") {
+        auto it = std::remove_if(bookings.begin(), bookings.end(),
+                                 [&](const Booking &b) { return b.hallName != selectedHall; });
+        bookings.erase(it, bookings.end());
+    }
+
+    // Применяем текстовые фильтры по столбцам (кроме зала, т.к. он уже обработан)
+    for (auto it = m_columnFilters.constBegin(); it != m_columnFilters.constEnd(); ++it) {
+        int col = it.key();
+        const QString &filter = it.value();
+        if (filter.isEmpty()) continue;
+
+        bookings.erase(std::remove_if(bookings.begin(), bookings.end(),
+                                      [col, &filter](const Booking &b) {
+                                          QString cellText;
+                                          switch (col) {
+                                          case 0: cellText = b.date.toString("dd.MM.yyyy"); break;
+                                          case 1: cellText = b.startTime.toString("HH:mm") + " - " + b.endTime.toString("HH:mm"); break;
+                                          case 2: cellText = b.hallName; break;
+                                          case 3: cellText = b.userFullName; break;
+                                          case 4: cellText = b.sportType; break;
+                                          case 5: cellText = QString::number(b.cost, 'f', 2); break;
+                                          default: return false;
+                                          }
+                                          return cellText != filter;
+                                      }), bookings.end());
+    }
+
     m_bookingsTable->setRowCount(bookings.size());
 
     for (int i = 0; i < bookings.size(); ++i) {
@@ -411,4 +464,55 @@ void AdminWindow::onLogout()
 {
     close();
     emit logoutRequested();
+}
+
+// --- Слоты фильтрации ---
+void AdminWindow::onHallFilterChanged(int /*index*/)
+{
+    refreshBookingsTable();
+}
+
+void AdminWindow::onClearFilters()
+{
+    m_hallFilterCombo->setCurrentIndex(0);   // "Все залы"
+    m_columnFilters.clear();
+    refreshBookingsTable();
+}
+
+void AdminWindow::onBookingTableContextMenu(const QPoint &pos)
+{
+    QTableWidgetItem *item = m_bookingsTable->itemAt(pos);
+    if (!item)
+        return;
+
+    int col = item->column();
+    QString cellText = item->text();
+
+    QMenu menu(this);
+
+    // Не даём фильтровать по столбцу "Зал", т.к. для него есть выпадающий список
+    if (col != 2) {
+        QAction *filterAction = menu.addAction(QString("Фильтр: «%1»").arg(cellText));
+        connect(filterAction, &QAction::triggered, this, [this, col, cellText]() {
+            m_columnFilters.insert(col, cellText);
+            // Снимаем фильтр по залу, чтобы не конфликтовал?
+            // Лучше оставить комбинирование: можно выбрать зал + другой фильтр
+            refreshBookingsTable();
+        });
+    }
+
+    // Если по этому столбцу уже есть фильтр, показываем сброс
+    if (m_columnFilters.contains(col)) {
+        QAction *clearAction = menu.addAction("Снять фильтр с этого столбца");
+        connect(clearAction, &QAction::triggered, this, [this, col]() {
+            m_columnFilters.remove(col);
+            refreshBookingsTable();
+        });
+    }
+
+    menu.addSeparator();
+    QAction *clearAllAction = menu.addAction("Сбросить все фильтры");
+    connect(clearAllAction, &QAction::triggered, this, &AdminWindow::onClearFilters);
+
+    menu.exec(m_bookingsTable->viewport()->mapToGlobal(pos));
 }
